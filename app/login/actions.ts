@@ -3,6 +3,8 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 
+const SELF_SERVICE_OWNER_EMAIL = 'wwooten@gmail.com';
+
 export async function sendLoginCode(formData: FormData) {
   const email = String(formData.get('email') ?? '').trim().toLowerCase();
   if (!email) redirect('/login?error=Enter%20your%20email%20address.');
@@ -11,7 +13,7 @@ export async function sendLoginCode(formData: FormData) {
   const { error } = await supabase.auth.signInWithOtp({
     email,
     options: {
-      shouldCreateUser: false,
+      shouldCreateUser: email === SELF_SERVICE_OWNER_EMAIL,
     },
   });
 

@@ -5,6 +5,40 @@ import { createClient } from '@/lib/supabase/server';
 
 const SELF_SERVICE_OWNER_EMAIL = 'wwooten@gmail.com';
 
+async function requireActiveStaffProfile(userId: string) {
+  const supabase = await createClient();
+  const { data: profile } = await supabase
+    .from('staff_profiles')
+    .select('user_id,active')
+    .eq('user_id', userId)
+    .eq('active', true)
+    .maybeSingle();
+
+  if (!profile) {
+    await supabase.auth.signOut();
+    redirect('/login?error=This%20account%20is%20not%20authorized%20for%20staff%20access.');
+  }
+}
+
+export async function signInWithPassword(formData: FormData) {
+  const email = String(formData.get('email') ?? '').trim().toLowerCase();
+  const password = String(formData.get('password') ?? '');
+
+  if (!email || !password) {
+    redirect('/login?error=Enter%20your%20email%20and%20password.');
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+
+  if (error || !data.user) {
+    redirect('/login?error=Invalid%20email%20or%20password.');
+  }
+
+  await requireActiveStaffProfile(data.user.id);
+  redirect('/dashboard');
+}
+
 export async function sendLoginCode(formData: FormData) {
   const email = String(formData.get('email') ?? '').trim().toLowerCase();
   if (!email) redirect('/login?error=Enter%20your%20email%20address.');
@@ -40,17 +74,6 @@ export async function verifyLoginCode(formData: FormData) {
     redirect(`/login?sent=1&error=${encodeURIComponent(error?.message ?? 'Unable to verify code.')}`);
   }
 
-  const { data: profile } = await supabase
-    .from('staff_profiles')
-    .select('user_id,active')
-    .eq('user_id', data.user.id)
-    .eq('active', true)
-    .maybeSingle();
-
-  if (!profile) {
-    await supabase.auth.signOut();
-    redirect('/login?error=This%20account%20is%20not%20authorized%20for%20staff%20access.');
-  }
-
+  await requireActiveStaffProfile(data.user.id);
   redirect('/dashboard');
 }
